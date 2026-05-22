@@ -314,7 +314,7 @@ void * bkpAlloc_f(size_t size, size_t alignment, size_t id, const char * file, i
 
 	if(size_ >= grp->pageSize)
 	{
-		LOGC(eFATAL, gTag, gTagColor, "Cannot allocat that much");
+		LOGC(eFATAL, gTag, gTagColor, "Cannot allocat that much %ld max %ld", size_, grp->pageSize);
 		exit(-1);
 	}
 
@@ -444,7 +444,7 @@ void * bkpRealloc_f(void * ptr, size_t size, size_t alignment, const char * file
 	}
 
 	void * newPtr = bkpAlloc_f(size, alignment, bH->groupId, file, line);
-	memcpy(newPtr, ptr, size);
+	memcpy(newPtr, ptr, bH->payloadSize);
 	bkpFree_f(ptr);
 
 	return newPtr;
