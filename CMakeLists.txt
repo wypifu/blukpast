@@ -467,3 +467,28 @@ ELSE()
 	target_link_libraries(tutorial_09 pthread glfw vulkan m)
 ENDIF(WIN32)
 
+# Install
+include(GNUInstallDirs)
+
+if(${LINK_MODE} MATCHES staticLink OR ${LINK_MODE} MATCHES bothLink)
+    install(TARGETS ${LIB_NAME_STATIC}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()
+
+if(${LINK_MODE} MATCHES dynamicLink OR ${LINK_MODE} MATCHES bothLink)
+    install(TARGETS ${LIB_NAME_SHARED}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()
+
+# Headers — installe tout le dossier source comme headers
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/blukpast
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "build" EXCLUDE
+    PATTERN "tutorial" EXCLUDE
+    PATTERN "thirdparty" EXCLUDE
+    PATTERN ".git" EXCLUDE
+)
