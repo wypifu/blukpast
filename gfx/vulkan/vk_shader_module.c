@@ -273,7 +273,7 @@ void bkpDebugDescriptorLayout(BkpDescriptorSetLayout * layout)
 /*_________________________________________________________________________________*/
 BkpBool bkpCreateShaderModule(BkpGpuAdapter  adapter, const char * szPath, BkpShaderModule * sModule)
 {
-	size_t len;
+	size_t len = 0;
 
 	LOGC(eDEBUG, bkpTAG, bkpColor, "loading '%s'!", szPath);
 	char * code_src = bkp_loadBinary(szPath, &len);

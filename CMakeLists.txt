@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 set(CMAKE_LEGACY_CYGWIN_WIN32 0)
 set(CMAKE_VERBOSE_MAKEFILE on)
 project("blukpast")
+option(BUILD_TUTORIALS "Build tutorial executables" ON)
 
 IF(NOT DEFINED LINK_MODE)
     set(LINK_MODE bothLink)
@@ -118,6 +119,7 @@ ENDIF(${LINK_MODE} MATCHES dynamicLink OR ${LINK_MODE} MATCHES bothLink)
 
 find_program(GLSLC glslc HINTS $ENV{VULKAN_SDK}/bin $ENV{VULKAN_SDK}/Bin)
 
+if(BUILD_TUTORIALS)
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/tutorial/00_hello_world/shaders/triangle.vert.spv
            ${CMAKE_BINARY_DIR}/tutorial/00_hello_world/shaders/triangle.frag.spv
@@ -466,6 +468,8 @@ IF(WIN32)
 ELSE()
 	target_link_libraries(tutorial_09 pthread glfw vulkan m)
 ENDIF(WIN32)
+
+endif()
 
 # Install
 include(GNUInstallDirs)

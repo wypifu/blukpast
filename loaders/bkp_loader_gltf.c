@@ -74,8 +74,7 @@ static void loadTextures(BkpGpuAdapter adapter, cgltf_data * data,
     {
         BkpModelTexture * tex = bkp_modelTexSlot(model);
         memset(tex, 0, sizeof(*tex));
-        if(data->images[i].name)
-            strncpy(tex->name, data->images[i].name, sizeof(tex->name)-1);
+        if(data->images[i].name) strncpy(tex->name, data->images[i].name, sizeof(tex->name)-1);
         bkpSetDefaultTextureInfo(&tex->image);
     }
 
@@ -323,16 +322,21 @@ static void loadPrimitive(BkpGpuAdapter adapter, cgltf_primitive * prim,
         mesh->meshAabbMax[0]=mMax[0]; mesh->meshAabbMax[1]=mMax[1]; mesh->meshAabbMax[2]=mMax[2];
 
         if(joints)
+        {
             bkpMakeSkinMeshBufferEx(adapter, n,
                                     positions, normals, uvs, tangents,
                                     joints, weights,
                                     idxCount, idx32, idx16,
                                     &mesh->geo, scratchGroupId);
+        }
         else
+        {
             bkpMakeMeshBufferEx(adapter, n,
                                 positions, normals, uvs, tangents, NULL,
                                 idxCount, idx32, idx16,
                                 &mesh->geo, scratchGroupId, BKP_NORMALS_KEEP);
+
+}
     }
 
     free(idx32); free(idx16);
