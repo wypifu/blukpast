@@ -6,7 +6,7 @@ Blukpast provides a thin but practical abstraction layer over Vulkan, covering p
 
 ## Full Documentation
 Still updating
-[Documentation] (https://wypifu.github.io/bkp/)
+[Documentation] (https://wypifu.github.io/blukpast/)
 
 
 ## Design goals
@@ -119,22 +119,22 @@ target_link_libraries(myapp ${BKP_LIB} glfw3 vulkan-1 winmm)
 
 All public symbols are prefixed with `bkp` / `Bkp` and exported via `BKP_EXPORTED`.
 
-## Tutorials
+## [Tutorials](https://github.com/wypifu/tree/master/blukpast/tutorial/)
 
 Each tutorial builds on the previous one. Run from the `build/` directory.
 
 | # | Name | What it demonstrates |
 |---|------|----------------------|
-| 00 | [Hello World](https://github.com/wypifu/blukpast/tutorial) | Swap chain, minimal graphics pipeline, push constants — the classic triangle |
-| 01 | Playground | All built-in geometry types, PBR materials, GLTF loading, free camera |
-| 02 | Camera | Free camera (WASD + mouse drag), sky box, dynamic viewport/scissor |
-| 03 | PBR / IBL | Physically-based rendering with image-based lighting — irradiance map, pre-filtered environment, GGX BRDF LUT |
-| 04 | Font & Input | HUD overlay, TTF font rendering, keyboard and mouse input callbacks |
-| 05 | Shadow Map | Offline 4096×4096 depth pre-pass, PCF shadow sampling in the scene shader |
-| 06 | Floor Reflection | Off-screen reflection pass, reflected view matrix, floor blending |
-| 07 | Animations | Click-to-spin with ray-sphere picking, per-object spin state, dynamic shadow updates |
-| 08 | Deformation | CPU-side spring-damper vertex deformation — drag to dent, release to shake |
-| 09 | Destruction | Compute shader particle system — click past the speed threshold to explode an object, watch it respawn after 5 s |
+| 00 | [Hello World](https://github.com/wypifu/tree/master/blukpast/tutorial/00_hello_world) | Swap chain, minimal graphics pipeline, push constants — the classic triangle |
+| 01 | [Playground](https://github.com/wypifu/tree/master/blukpast/tutorial/01_payground) | All built-in geometry types, PBR materials, GLTF loading, free camera |
+| 02 | [Camera](https://github.com/wypifu/tree/master/blukpast/tutorial/02_camera) | Free camera (WASD + mouse drag), sky box, dynamic viewport/scissor |
+| 03 | [PBR / IBL](https://github.com/wypifu/tree/master/blukpast/tutorial/03_pbr_ibl) | Physically-based rendering with image-based lighting — irradiance map, pre-filtered environment, GGX BRDF LUT |
+| 04 | [Font & Input](https://github.com/wypifu/tree/master/blukpast/tutorial/04_font_input) | HUD overlay, TTF font rendering, keyboard and mouse input callbacks |
+| 05 | [Shadow Map](https://github.com/wypifu/tree/master/blukpast/tutorial/05_shadow_map) | Offline 4096×4096 depth pre-pass, PCF shadow sampling in the scene shader |
+| 06 | [Floor Reflection](https://github.com/wypifu/tree/master/blukpast/tutorial/06_floor_reflection) | Off-screen reflection pass, reflected view matrix, floor blending |
+| 07 | [Animations](https://github.com/wypifu/tree/master/blukpast/tutorial/07_animations) | Click-to-spin with ray-sphere picking, per-object spin state, dynamic shadow updates |
+| 08 | [Deformation](https://github.com/wypifu/tree/master/blukpast/tutorial/08_deformation) | CPU-side spring-damper vertex deformation — drag to dent, release to shake |
+| 09 | [Destruction](https://github.com/wypifu/tree/master/blukpast/tutorial/09_destruction) | Compute shader particle system — click past the speed threshold to explode an object, watch it respawn after 5 s |
 
 ## Hello Triangle
 
