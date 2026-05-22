@@ -4,6 +4,11 @@ Lightweight Vulkan graphics library in C — pipelines, descriptors, buffers, te
 
 Blukpast provides a thin but practical abstraction layer over Vulkan, covering pipeline creation, descriptor management, GPU buffer and texture allocation, shader loading, and command recording — without hiding the underlying API or imposing an engine architecture.
 
+## Full Documentation
+Still updating
+[Documentation] (https://wypifu.github.io/bkp/)
+
+
 ## Design goals
 
 - Pure C API, embeddable as a shared or static library
@@ -120,7 +125,7 @@ Each tutorial builds on the previous one. Run from the `build/` directory.
 
 | # | Name | What it demonstrates |
 |---|------|----------------------|
-| 00 | Hello World | Swap chain, minimal graphics pipeline, push constants — the classic triangle |
+| 00 | [Hello World](https://github.com/wypifu/blukpast/tutorial) | Swap chain, minimal graphics pipeline, push constants — the classic triangle |
 | 01 | Playground | All built-in geometry types, PBR materials, GLTF loading, free camera |
 | 02 | Camera | Free camera (WASD + mouse drag), sky box, dynamic viewport/scissor |
 | 03 | PBR / IBL | Physically-based rendering with image-based lighting — irradiance map, pre-filtered environment, GGX BRDF LUT |
