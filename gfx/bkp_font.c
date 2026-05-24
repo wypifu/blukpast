@@ -24,7 +24,10 @@ extern "C" {
 #include <string.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
 #include <thirdparty/stb/stb_truetype.h>
+#pragma GCC diagnostic pop
 
 /**************************************************************************
 *	Defines & Maro

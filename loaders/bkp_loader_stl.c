@@ -262,7 +262,7 @@ BkpBool bkpLoadStl(BkpGpuAdapter adapter, const char * path,
     rewind(f);
     unsigned char * buf = (unsigned char *)malloc((size_t)fsize + 1);
     if(!buf) { fclose(f); return BKP_FALSE; }
-    fread(buf, 1, (size_t)fsize, f);
+    (void)fread(buf, 1, (size_t)fsize, f);
     buf[fsize] = '\0';
     fclose(f);
 

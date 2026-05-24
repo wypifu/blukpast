@@ -313,9 +313,12 @@ static void loadPrimitive(BkpGpuAdapter adapter, cgltf_primitive * prim,
 
     float mMin[3]={1e30f,1e30f,1e30f}, mMax[3]={-1e30f,-1e30f,-1e30f};
     for(size_t i=0;i<n;++i){
-        if(positions[i].x<mMin[0])mMin[0]=positions[i].x; if(positions[i].x>mMax[0])mMax[0]=positions[i].x;
-        if(positions[i].y<mMin[1])mMin[1]=positions[i].y; if(positions[i].y>mMax[1])mMax[1]=positions[i].y;
-        if(positions[i].z<mMin[2])mMin[2]=positions[i].z; if(positions[i].z>mMax[2])mMax[2]=positions[i].z;
+        if(positions[i].x<mMin[0]){ mMin[0]=positions[i].x; }
+        if(positions[i].x>mMax[0]){ mMax[0]=positions[i].x; }
+        if(positions[i].y<mMin[1]){ mMin[1]=positions[i].y; }
+        if(positions[i].y>mMax[1]){ mMax[1]=positions[i].y; }
+        if(positions[i].z<mMin[2]){ mMin[2]=positions[i].z; }
+        if(positions[i].z>mMax[2]){ mMax[2]=positions[i].z; }
     }
 
     {

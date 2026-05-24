@@ -232,7 +232,7 @@ BkpBool bkpLoadObj(BkpGpuAdapter adapter, const char * path,
     rewind(f);
     char * buf = (char *)malloc((size_t)fsize + 1);
     if(!buf) { fclose(f); return BKP_FALSE; }
-    fread(buf, 1, (size_t)fsize, f);
+    (void)fread(buf, 1, (size_t)fsize, f);
     buf[fsize] = '\0';
     fclose(f);
 
