@@ -587,7 +587,10 @@ static void allocateBuffer_(BkpGpuAdapter adapter, struct SChunkGroup * grp, Bkp
 				if(chunk->firstFree == NULL)
 				{
 					void * it = bkpListFind(grp->l_freeChunks, chunk, bkpContainerFindPtr);
-					bkpListRemove(&grp->l_freeChunks, it);
+					if(it != NULL)
+					{
+						bkpListRemove(&grp->l_freeChunks, it);
+					}
 				}
 			}
 			break;
@@ -659,7 +662,10 @@ static void allocateBufferImage_(BkpGpuAdapter adapter, struct SChunkGroup * grp
 				if(chunk->firstFree == NULL)
 				{
 					void * it = bkpListFind(grp->l_freeChunks, chunk, bkpContainerFindPtr);
-					bkpListRemove(&grp->l_freeChunks, it);
+					if(it != NULL)
+					{
+						bkpListRemove(&grp->l_freeChunks, it);
+					}
 				}
 			}
 			break;
@@ -667,14 +673,25 @@ static void allocateBufferImage_(BkpGpuAdapter adapter, struct SChunkGroup * grp
 
 		if(block == NULL)
 		{
+			LOGC(eDEBUG, bkpTAG, bkpColor,
+			     "allocateBufferImage_: no block in chunk %p (stale size=%lu) — unlocking and creating new chunk...",
+			     (void *)chunk, (unsigned long)chunk->size);
+			/* Mark size=0 so getChunk skips this chunk and freeBlock can re-add it when space is freed. */
+			chunk->size = 0;
+			bkpUnlockMutex(&chunk->mutex);
+
 			VkDeviceSize size_;
 			SChunk * chunk0 = newChunk(adapter, &size_, info->size);
 			createChunkImage(adapter, chunk0, size_, info, memReq);
+			LOGC(eDEBUG, bkpTAG, bkpColor,
+			     "allocateBufferImage_: new chunk created chunk0=%p", (void *)chunk0);
 			avail = chunk0->firstFree;
 			bkpLockMutex(&grp->mutex);
+			chunk0->pChunkgroup = grp;
 			bkpArrayPush(&grp->a_chunks, chunk0);
 			bkpListAdd(&grp->l_freeChunks, chunk0);
 			bkpUnlockMutex(&grp->mutex);
+			bkpLockMutex(&chunk0->mutex);
 			chunk = chunk0;
 		}
 	}
@@ -767,6 +784,10 @@ static void freeBlock(BkpGpuAdapter adapter, struct SChunkGroup * chunkGroup, Bk
 			if(chk->blocks == block)
 			{
 				chk->blocks = p;
+			}
+			if(chk->blocksReverse == block)
+			{
+				chk->blocksReverse = p;
 			}
 
 			bkpFree(block);
@@ -1019,7 +1040,10 @@ static void destroyMemoryAllocator(BkpGpuAdapter adapter)
 						{
 							if(p->used) ++n;
 						}
-						LOGC(eFATAL, bkpTAG, bkpColor, "Memory leak!!!!  bkp::gfx::BkpBuffer not Destroy remaining(%u)", n);
+						if(n > 0)
+						{
+							LOGC(eFATAL, bkpTAG, bkpColor, "Memory leak!!!!  bkp::gfx::BkpBuffer not Destroy remaining(%u)", n);
+						}
 					}
 					bkpFree(ch->blocksReverse);
 					if(ch->mapped)
@@ -1066,7 +1090,10 @@ static void destroyMemoryAllocator(BkpGpuAdapter adapter)
 						{
 							if(p->used) ++n;
 						}
-						LOGC(eFATAL, bkpTAG, bkpColor, "Memory leak!!!!  bkp::gfx::BkpBufferImage not Destroy remaining(%u)", n);
+						if(n > 0)
+						{
+							LOGC(eFATAL, bkpTAG, bkpColor, "Memory leak!!!!  bkp::gfx::BkpBufferImage not Destroy remaining(%u)", n);
+						}
 					}
 					bkpFree(ch->blocksReverse);
 					if(ch->mapped)
@@ -1436,7 +1463,10 @@ static BkpBuffer getAvailableStagging(BkpGpuAdapter adapter, BkpVkMemoryAllocato
 
 			return stagging;
 		}
-		//should wait a little bit;
+		LOGC(eFATAL, bkpTAG, bkpColor,
+		     "getAvailableStagging: staging buffer pool exhausted — "
+		     "all slots checked out with none returned to pool");
+		exit(-1);
 	}
 
 }

@@ -120,12 +120,18 @@ static void loadTextures(BkpGpuAdapter adapter, cgltf_data * data,
        BkpModelTexture has a larger stride, so use a temp array. */
     BkpImageResource * imgs = (BkpImageResource *)calloc(n, sizeof(BkpImageResource));
     for(size_t i = 0; i < n; ++i)
-        imgs[i] = model->textures[texBase + i].image;
+    {
+      imgs[i] = model->textures[texBase + i].image;
+    }
 
+    LOG(eDEBUG, gTag, "uploadTextureBatch start: %zu texture(s)", n);
     bkpUploadTextureBatch(adapter, sources, n, imgs);
+    LOG(eDEBUG, gTag, "uploadTextureBatch done");
 
     for(size_t i = 0; i < n; ++i)
-        model->textures[texBase + i].image = imgs[i];
+    {
+      model->textures[texBase + i].image = imgs[i];
+    }
 
     free(imgs);
     free(sources);
@@ -561,9 +567,13 @@ BkpBool bkpLoadGltf(BkpGpuAdapter adapter, const char * path,
     size_t   * firstPrim = (size_t *)  calloc(data->meshes_count + 1, sizeof(size_t));
     uint32_t * primCount = (uint32_t *)calloc(data->meshes_count + 1, sizeof(uint32_t));
 
+//    LOG(eDEBUG, gTag, "loadTextures start");
     loadTextures  (adapter, data, path, model);
+ //   LOG(eDEBUG, gTag, "loadMaterials start");
     loadMaterials (data, model);
+  //  LOG(eDEBUG, gTag, "loadMeshes start");
     loadMeshes    (adapter, data, model, scratchGroupId, firstPrim, primCount);
+   // LOG(eDEBUG, gTag, "loadNodes start");
     loadNodes     (data, model, firstPrim, primCount);
     loadSkins     (data, model);
     loadAnimations(data, model);

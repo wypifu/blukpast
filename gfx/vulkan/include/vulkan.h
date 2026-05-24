@@ -46,6 +46,29 @@ extern "C" {
 	BKP_EXPORTED void bkpSetVulkanMemoryPage(size_t pageSize);
 	/** @brief Override the per-adapter Vulkan memory page size (bytes). */
 	BKP_EXPORTED void bkpSetVulkanAdapterMemoryPage(size_t pageSize);
+
+	/**
+	 * @brief Override the static staging-memory budget used by @ref bkpUploadTextureBatch (mode A).
+	 *
+	 * Equivalent to setting @ref BkpVulkanContextInfo::stagingBudgetBytes before init, but
+	 * callable at any time.  The new value takes effect on the next upload call.
+	 * Has no effect when mode C (@ref bkpSetDynamicStagingBudget) is active.
+	 *
+	 * @param bytes  Budget in bytes.  0 resets to the built-in default (256 MiB).
+	 */
+	BKP_EXPORTED void bkpSetStagingBudget(size_t bytes);
+
+	/**
+	 * @brief Enable or disable the runtime-adaptive staging budget (mode C).
+	 *
+	 * Equivalent to setting @ref BkpVulkanContextInfo::dynamicStagingBudget before init.
+	 * Enabling this after device creation is valid **only if** @c VK_EXT_memory_budget was
+	 * already enabled during logical-device creation; otherwise the query will return 0
+	 * and the implementation falls back to the static budget automatically.
+	 *
+	 * @param enabled  @c BKP_TRUE to activate mode C, @c BKP_FALSE to revert to mode A.
+	 */
+	BKP_EXPORTED void bkpSetDynamicStagingBudget(BkpBool enabled);
 	/** @brief Return the smallest power-of-two alignment ≥ @p size required by the device. */
 	BKP_EXPORTED size_t bkp_vulkanGetDeviceAlignmentPower2(BkpGpuAdapter adapter, size_t size);
 

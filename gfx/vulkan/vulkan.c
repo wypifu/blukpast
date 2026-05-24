@@ -54,6 +54,10 @@ static const char * bkpTAG = "GFX";
 static size_t gVULKAN_MEMORY_PAGE_SIZE  = SIZE_1_MIB;
 static size_t gVULKAN_ADAPTER_PAGE_SIZE = SIZE_100_MIB * 2.56f ;
 
+/* ---- staging budget (read by vk_texture_batch.c) ---- */
+static size_t  gSTAGING_BUDGET_BYTES = SIZE_1_MIB * 256; /* mode A default: 256 MiB */
+static BkpBool gDYNAMIC_STAGING      = BKP_FALSE;        /* mode C: use VK_EXT_memory_budget */
+
 static const char * gTszValidationLayers[] = {"VK_LAYER_KHRONOS_validation"};
 static const int32_t gValidationLayersCount = sizeof(gTszValidationLayers) / sizeof(gTszValidationLayers[0]);
 static uint16_t gVersMajor = 0, gVersMinor = 3, gVersCorr = 1;
@@ -129,6 +133,74 @@ void bkpSetVulkanAdapterMemoryPage(size_t pageSize)
 }
 
 /*____________________________________________________________________________________*/
+/**
+ * @brief Resolve the effective staging-memory budget for the current upload.
+ *
+ * Internal function called by @c bkpUploadTextureBatch.
+ * - Mode A (@c gDYNAMIC_STAGING == BKP_FALSE): returns the static @c gSTAGING_BUDGET_BYTES.
+ * - Mode C (@c gDYNAMIC_STAGING == BKP_TRUE): queries @c VK_EXT_memory_budget and returns
+ *   ¼ of the largest available CPU-visible heap.  Falls back to the static budget when
+ *   the reported available space is 0.
+ */
+void bkpSetStagingBudget(size_t bytes)
+{
+	gSTAGING_BUDGET_BYTES = bytes ? bytes : SIZE_1_MIB * 256;
+}
+
+/*____________________________________________________________________________________*/
+void bkpSetDynamicStagingBudget(BkpBool enabled)
+{
+	gDYNAMIC_STAGING = enabled;
+}
+
+/*____________________________________________________________________________________*/
+size_t bkpResolveStagingBudget(BkpGpuAdapter adapter)
+{
+	if(!gDYNAMIC_STAGING)
+	{
+		LOGC(eDEBUG, bkpTAG, bkpColor,
+		     "Staging budget: static %zu MiB", gSTAGING_BUDGET_BYTES / (1024u * 1024u));
+		return gSTAGING_BUDGET_BYTES;
+	}
+
+	VkPhysicalDeviceMemoryBudgetPropertiesEXT budget = {0};
+	budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+	VkPhysicalDeviceMemoryProperties2 props = {0};
+	props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+	props.pNext = &budget;
+
+	vkGetPhysicalDeviceMemoryProperties2(adapter->gpu, &props);
+
+	VkDeviceSize best = 0;
+	for(uint32_t i = 0; i < props.memoryProperties.memoryHeapCount; ++i)
+	{
+		if(props.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+			continue; /* skip device-local heaps; we want CPU-visible staging memory */
+		VkDeviceSize avail = budget.heapBudget[i] > budget.heapUsage[i]
+		                   ? budget.heapBudget[i] - budget.heapUsage[i]
+		                   : 0;
+		if(avail > best)
+		{
+			best = avail;
+		}
+	}
+
+	if(best == 0)
+	{
+		LOGC(eWARNING, bkpTAG, bkpColor,
+		     "Dynamic staging budget query returned 0 — falling back to %zu MiB static budget",
+		     gSTAGING_BUDGET_BYTES / (1024u * 1024u));
+		return gSTAGING_BUDGET_BYTES;
+	}
+
+	LOGC(eDEBUG, bkpTAG, bkpColor,
+	     "Staging budget: dynamic best=%zu MiB → using %zu MiB (1/4)",
+	     (size_t)(best / (1024u * 1024u)), (size_t)(best / 4 / (1024u * 1024u)));
+	return (size_t)(best / 4);
+}
+
+/*____________________________________________________________________________________*/
 BkpBool bkpInitVulkanContext(BkpVulkanContextInfo * info, BkpVulkanContext * ctx)
 {
 	if(bkpGetMemoryGroupCount() == 1)
@@ -188,6 +260,15 @@ BkpBool bkpInitVulkanContext(BkpVulkanContextInfo * info, BkpVulkanContext * ctx
 
 	ctx->info = *info;
 
+	if(info->stagingBudgetBytes)
+	{
+		gSTAGING_BUDGET_BYTES = info->stagingBudgetBytes;
+	}
+	if(info->dynamicStagingBudget)
+	{
+		gDYNAMIC_STAGING = BKP_TRUE;
+	}
+
 	pickPhysicalDevice(ctx);
 
 	return BKP_TRUE;
@@ -225,6 +306,38 @@ void bkpActivateGpuAdapter(BkpVulkanContext * ctx, BkpGpuAdapter * adapter_, Bkp
 	}
 
 	adapter->surface = ctx->surface;
+
+	/* Mode C: try to enable VK_EXT_memory_budget for dynamic staging budget queries.
+	   Must be done before createLogicalDevice so the extension is passed at device creation. */
+	if(gDYNAMIC_STAGING)
+	{
+		BkpArray(char *) avail     = getRequiredDeviceExtensions(adapter->gpu, ctx->memoryGroupId);
+		size_t           availCount = bkpArraySize(avail);
+		BkpBool          found      = BKP_FALSE;
+
+		for(size_t k = 0; k < availCount && !found; ++k)
+		{
+			if(strcmp(avail[k], VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
+			{
+				found = BKP_TRUE;
+			}
+		}
+		bkpArrayDestroy(&avail);
+
+		if(found)
+		{
+			bkpArrayPush(&ctx->szDeviceExt, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+			LOGC(eINFO, bkpTAG, bkpColor, "VK_EXT_memory_budget enabled — dynamic staging budget active");
+		}
+		else
+		{
+			LOGC(eWARNING, bkpTAG, bkpColor,
+			     "VK_EXT_memory_budget not available — falling back to static staging budget (%zu MiB)",
+			     gSTAGING_BUDGET_BYTES / (1024u * 1024u));
+			gDYNAMIC_STAGING = BKP_FALSE;
+		}
+	}
+
 	createLogicalDevice(ctx, adapter, criteria);
 
 	bkpSetupVmaVtable(adapter, ctx->info.vmaMode, &ctx->info.vmaCallbacks);

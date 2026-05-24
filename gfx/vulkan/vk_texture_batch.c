@@ -20,14 +20,15 @@ extern "C" {
 #endif
 
 /* internal bkp functions not yet in the public header */
-void bkpBeginCmdBufferUniqUsage(BkpGpuAdapter adapter,
-                                 BkpCommandBuffer * cmd, EGpuQueue type);
-void bkpEndCmdBufferUniqUsage  (BkpGpuAdapter adapter,
-                                 BkpCommandBuffer * cmd);
-void bkpMapBuffer  (BkpGpuAdapter adapter, BkpBuffer buffer);
-void bkpUnmapBuffer(BkpGpuAdapter adapter, BkpBuffer buffer);
-void bkpGetBuffer      (BkpBuffer buffer, VkBuffer * out);
-void bkpGetBufferOffset(BkpBuffer buffer, VkDeviceSize * out);
+void   bkpBeginCmdBufferUniqUsage(BkpGpuAdapter adapter,
+                                   BkpCommandBuffer * cmd, EGpuQueue type);
+void   bkpEndCmdBufferUniqUsage  (BkpGpuAdapter adapter,
+                                   BkpCommandBuffer * cmd);
+void   bkpMapBuffer  (BkpGpuAdapter adapter, BkpBuffer buffer);
+void   bkpUnmapBuffer(BkpGpuAdapter adapter, BkpBuffer buffer);
+void   bkpGetBuffer      (BkpBuffer buffer, VkBuffer * out);
+void   bkpGetBufferOffset(BkpBuffer buffer, VkDeviceSize * out);
+size_t bkpResolveStagingBudget(BkpGpuAdapter adapter);
 
 static const char * gTag = "TexBatch";
 
@@ -76,27 +77,52 @@ static void spawnAndJoin(DecodeJob * jobs, size_t count)
     for(size_t base = 0; base < count; base += MAXIMUM_WAIT_OBJECTS)
     {
         size_t chunk = count - base;
-        if(chunk > MAXIMUM_WAIT_OBJECTS) chunk = MAXIMUM_WAIT_OBJECTS;
+        if(chunk > MAXIMUM_WAIT_OBJECTS)
+        {
+          chunk = MAXIMUM_WAIT_OBJECTS;
+        }
         HANDLE tmp[MAXIMUM_WAIT_OBJECTS]; DWORD tc = 0;
         for(size_t k = 0; k < chunk; ++k)
         {
             size_t i = base + k;
             if(jobs[i].filePath || jobs[i].encodedData)
-            { h[i] = CreateThread(NULL,0,decodeWorker,&jobs[i],0,NULL); tmp[tc++]=h[i]; }
-            else h[i] = NULL;
+            {
+              h[i] = CreateThread(NULL,0,decodeWorker,&jobs[i],0,NULL);
+              tmp[tc++]=h[i];
+            }
+            else
+            {
+              h[i] = NULL;
+            }
         }
-        if(tc) WaitForMultipleObjects(tc, tmp, TRUE, INFINITE);
-        for(size_t k = 0; k < chunk; ++k) if(h[base+k]) CloseHandle(h[base+k]);
+        if(tc)
+        {
+          WaitForMultipleObjects(tc, tmp, TRUE, INFINITE);
+        }
+        for(size_t k = 0; k < chunk; ++k)
+        {
+          if(h[base+k])
+          {
+            CloseHandle(h[base+k]);
+          }
+        }
     }
     free(h);
 #else
     pthread_t * t  = (pthread_t *)malloc(count * sizeof(pthread_t));
     int       * ok = (int *)calloc(count, sizeof(int));
     for(size_t i = 0; i < count; ++i)
-        if(jobs[i].filePath || jobs[i].encodedData)
-        { pthread_create(&t[i], NULL, decodeWorker, &jobs[i]); ok[i]=1; }
+    {
+      if(jobs[i].filePath || jobs[i].encodedData)
+      {
+        pthread_create(&t[i], NULL, decodeWorker, &jobs[i]);
+        ok[i]=1;
+      }
+    }
     for(size_t i = 0; i < count; ++i)
-        if(ok[i]) pthread_join(t[i], NULL);
+    {
+      if(ok[i]) pthread_join(t[i], NULL);
+    }
     free(t); free(ok);
 #endif
 }
@@ -142,6 +168,9 @@ static void gpuBatch(BkpGpuAdapter adapter,
     {
         if(!jobs[i].pixels) continue;
 
+        VkDeviceSize sz = (VkDeviceSize)jobs[i].width * jobs[i].height * 4;
+        //LOG(eDEBUG, gTag, "  tex[%zu] %dx%d (%zu MiB) — createImage...", i, jobs[i].width, jobs[i].height, (size_t)(sz / (1024u*1024u)));
+
         BkpImageResource * t = &targets[i];
         t->imageInfo.extent.width  = (uint32_t)jobs[i].width;
         t->imageInfo.extent.height = (uint32_t)jobs[i].height;
@@ -166,9 +195,9 @@ static void gpuBatch(BkpGpuAdapter adapter,
         t->viewInfo.subresourceRange.layerCount = 1;
 
         bkpCreateImage(adapter, t);
+        //LOG(eDEBUG, gTag, "  tex[%zu] image OK — allocBuffer...", i);
 
         /* staging buffer */
-        VkDeviceSize sz = (VkDeviceSize)jobs[i].width * jobs[i].height * 4;
         BkpBufferInfo info = {};
         info.usage           = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         info.type            = eBUFFER_CPU_GPU;
@@ -177,10 +206,14 @@ static void gpuBatch(BkpGpuAdapter adapter,
         info.qCount          = 1;
         info.isImage         = BKP_FALSE;
         bkpAllocateBuffer(adapter, &stagings[i], &info);
+        //LOG(eDEBUG, gTag, "  tex[%zu] buffer OK — upload...", i);
         bkpMapBuffer(adapter, stagings[i]);
         bkpUploadBufferData(adapter, stagings[i], jobs[i].pixels, 0, sz);
         bkpUnmapBuffer(adapter, stagings[i]);
+        //LOG(eDEBUG, gTag, "  tex[%zu] upload OK", i);
     }
+
+    //LOG(eDEBUG, gTag, "gpuBatch: stagings allocated");
 
     /* ==== Command buffer 1 : upload batch ==== */
     BkpCommandBuffer cmd;
@@ -223,8 +256,8 @@ static void gpuBatch(BkpGpuAdapter adapter,
     /* for textures with mipLevels==1 → SHADER_READ_ONLY directly */
     for(size_t i = 0; i < count; ++i)
     {
-        if(!jobs[i].pixels) continue;
-        if(targets[i].imageInfo.mipLevels > 1) continue;
+        if(!jobs[i].pixels) {continue;}
+        if(targets[i].imageInfo.mipLevels > 1) {continue;}
         recordBarrier(cmd.cmds[0], targets[i].images[0],
                       targets[i].viewInfo.subresourceRange.aspectMask,
                       0, 1,
@@ -235,13 +268,20 @@ static void gpuBatch(BkpGpuAdapter adapter,
                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     }
 
+    //LOG(eDEBUG, gTag, "gpuBatch: submit 1 (upload)...");
     bkpEndCmdBufferUniqUsage(adapter, &cmd); /* SUBMIT 1 */
+    //LOG(eDEBUG, gTag, "gpuBatch: submit 1 done");
 
     /* ==== Command buffer 2 : mip generation batch ==== */
     /* check if any texture needs mipmaps */
     int anyMips = 0;
     for(size_t i = 0; i < count; ++i)
-        if(jobs[i].pixels && targets[i].imageInfo.mipLevels > 1) { anyMips=1; break; }
+    {
+        if(jobs[i].pixels && targets[i].imageInfo.mipLevels > 1)
+        {
+          anyMips=1; break;
+        }
+    }
 
     if(anyMips)
     {
@@ -249,7 +289,8 @@ static void gpuBatch(BkpGpuAdapter adapter,
 
         for(size_t i = 0; i < count; ++i)
         {
-            if(!jobs[i].pixels || targets[i].imageInfo.mipLevels <= 1) continue;
+            if(!jobs[i].pixels || targets[i].imageInfo.mipLevels <= 1)
+            {continue;}
 
             BkpImageResource * t    = &targets[i];
             VkImage            img  = t->images[0];
@@ -309,7 +350,9 @@ static void gpuBatch(BkpGpuAdapter adapter,
                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         }
 
+        //LOG(eDEBUG, gTag, "gpuBatch: submit 2 (mipmaps)...");
         bkpEndCmdBufferUniqUsage(adapter, &cmd); /* SUBMIT 2 */
+        //LOG(eDEBUG, gTag, "gpuBatch: submit 2 done");
     }
 
     /* ==== create image views + free stagings ==== */
@@ -327,9 +370,13 @@ static void gpuBatch(BkpGpuAdapter adapter,
         t->viewInfo.image = t->images[0];
         if(vkCreateImageView(adapter->device, &t->viewInfo,
                               adapter->allocator, &view) != VK_SUCCESS)
+        {
             LOG(eWARNING, gTag, "vkCreateImageView failed for texture %zu", i);
+        }
         else
+        {
             bkpArrayPush(&t->imageViews, view);
+        }
 
         bkpFreeBuffer(adapter, &stagings[i]);
         stbi_image_free(jobs[i].pixels);
@@ -351,7 +398,9 @@ void bkpUploadTextureBatch(BkpGpuAdapter adapter,
     for(size_t i = 0; i < count; ++i)
     {
         if(sources[i].filePath)
+        {
             jobs[i].filePath = sources[i].filePath;
+        }
         else if(sources[i].encoded.size > 0)
         {
             jobs[i].encodedData = (uint8_t *)sources[i].encoded.buffer
@@ -360,15 +409,93 @@ void bkpUploadTextureBatch(BkpGpuAdapter adapter,
         }
     }
 
-    /* parallel CPU decode */
-    spawnAndJoin(jobs, count);
+    /* Split uploads into memory-aware sub-batches.
+       Each batch stays within the staging budget so that APUs (shared VRAM) and
+       systems with many large textures never exhaust memory in one shot. */
+    size_t budget = bkpResolveStagingBudget(adapter);
+    size_t base   = 0;
+    size_t nBatch = 0;
 
-    /* 2-submit GPU batch */
-    gpuBatch(adapter, jobs, count, targets);
+    while(base < count)
+    {
+        /* Accumulate textures until the estimated decoded size exceeds the budget. */
+        size_t batchEnd   = base;
+        size_t accumulated = 0;
+
+        while(batchEnd < count)
+        {
+            size_t est;
+            if(jobs[batchEnd].encodedData)
+            {
+                /* embedded: compressed size × 6 is a conservative RGBA decode estimate */
+                est = (size_t)jobs[batchEnd].encodedSize * 6;
+            }
+            else if(jobs[batchEnd].filePath)
+            {
+                /* file-based: unknown until decoded — assume a typical 1 K texture (16 MiB) */
+                est = 16u * 1024u * 1024u;
+            }
+            else
+            {
+                est = 0; /* null source — gpuBatch will skip it */
+            }
+
+            /* Always include at least one texture per batch even if it exceeds the budget. */
+            if(batchEnd > base && accumulated + est > budget)
+            {
+                break;
+            }
+            accumulated += est;
+            batchEnd++;
+        }
+
+        size_t batch = batchEnd - base;
+        /*
+        LOG(eDEBUG, gTag, "sub-batch %zu: textures [%zu..%zu) est=%zu MiB",
+            nBatch, base, batchEnd, accumulated / (1024u * 1024u));
+            */
+        spawnAndJoin(jobs + base, batch);
+        //LOG(eDEBUG, gTag, "sub-batch %zu: decode done", nBatch);
+
+        /* Second split on actual GPU image sizes (with mipmaps).
+           Keeps each gpuBatch under half the staging budget so the
+           GPU allocator chunk (typically 200 MiB) is not exhausted. */
+        const size_t gpuBudget = budget / 2;
+        size_t gpuBase = base;
+        while(gpuBase < batchEnd)
+        {
+            size_t gpuEnd   = gpuBase;
+            size_t gpuAccum = 0;
+            while(gpuEnd < batchEnd)
+            {
+                if(!jobs[gpuEnd].pixels) { gpuEnd++; continue; }
+                /* actual decoded RGBA size × 4/3 ≈ image + all mip levels */
+                size_t imgSz = (size_t)jobs[gpuEnd].width
+                             * (size_t)jobs[gpuEnd].height * 4 * 4 / 3;
+                if(gpuEnd > gpuBase && gpuAccum + imgSz > gpuBudget)
+                {
+                    break;
+                }
+                gpuAccum += imgSz;
+                gpuEnd++;
+            }
+            if(gpuEnd == gpuBase) { gpuEnd = gpuBase + 1; } /* always at least 1 */
+            /*
+            LOG(eDEBUG, gTag, "  gpu-batch %zu: [%zu..%zu) ~%zu MiB GPU",
+                nBatch, gpuBase, gpuEnd, gpuAccum / (1024u * 1024u));
+                */
+            gpuBatch(adapter, jobs + gpuBase, gpuEnd - gpuBase, targets + gpuBase);
+            //LOG(eDEBUG, gTag, "  gpu-batch %zu: done", nBatch);
+            gpuBase = gpuEnd;
+            nBatch++;
+        }
+        base = batchEnd;
+    }
 
     free(jobs);
 
-    LOG(eDEBUG, gTag, "Batch uploaded %zu texture(s) (2 GPU submits)", count);
+    LOG(eDEBUG, gTag, "Uploaded %zu texture(s) in %zu gpu-batch(es) (budget %zu MiB)",
+        count, nBatch, budget / (1024u * 1024u));
 }
 
 /*___________________________________________________________________*/
@@ -423,9 +550,13 @@ static void spawnAndJoinGrey(GreyJob * jobs, int count)
 #else
     pthread_t t[3]; int ok[3] = {0,0,0};
     for(int i = 0; i < count; ++i)
+    {
         if(jobs[i].path) { pthread_create(&t[i], NULL, greyWorker, &jobs[i]); ok[i]=1; }
+    }
     for(int i = 0; i < count; ++i)
+    {
         if(ok[i]) pthread_join(t[i], NULL);
+    }
 #endif
 }
 

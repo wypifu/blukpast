@@ -99,6 +99,7 @@ BkpConfig bkpDefaultConfig()
 	config.vulkanContextInfo.headless = BKP_FALSE;
 	config.vulkanContextInfo.fullScreen = BKP_FALSE;
 	config.vulkanContextInfo.vmaMode = eVMA_BKP;
+	config.vulkanContextInfo.dynamicStagingBudget = BKP_TRUE;
 
 	return config;
 }

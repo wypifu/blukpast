@@ -152,15 +152,23 @@ void bkp_list_insert_after(void ** ptr_, void * it, void * value)
 void bkp_list_remove(void ** ptr_, void * it)
 {
 	ListHeader * ptr = (ListHeader *)*ptr_;
-	Entry * p = it - sizeof(void *);
+	Entry * p = it - sizeof(void *) * 2;
 	if(p->prev != NULL)
 	{
 		((Entry *)p->prev)->next = p->next;
+	}
+	else
+	{
+		ptr->first = p->next;
 	}
 
 	if(p->next != NULL)
 	{
 		((Entry *)p->next)->prev = p->prev;
+	}
+	else
+	{
+		ptr->last = p->prev;
 	}
 	--ptr->size;
 }
@@ -175,6 +183,10 @@ void bkp_list_pop(void ** ptr_, void * value)
 	if(p->next != NULL)
 	{
 		((Entry *)p->next)->prev = NULL;
+	}
+	else
+	{
+		ptr->last = NULL;
 	}
 	bkpFree(p);
 	--ptr->size;

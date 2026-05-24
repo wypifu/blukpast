@@ -355,21 +355,63 @@ typedef struct
 } BkpVmaCallbacks;
 
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Configuration passed to @ref bkpInitVulkanContext (and indirectly to @ref bkpInit).
+ *
+ * Zero-initialise with @c {0}, then override only the fields you need.
+ * Any field left at 0 / @c BKP_FALSE / @c NULL falls back to a built-in default.
+ * Use @ref bkpDefaultConfig to obtain a ready-to-use @ref BkpConfig (which embeds
+ * this struct) with all defaults pre-filled.
+ */
 typedef struct
 {
-	const char * appName;
-	BkpWindow * win;
-	EWindowType eWinType;
-	int winWidth;
-	int winHeight;
+	const char * appName;     /**< Application name embedded in the Vulkan instance info.  NULL → "BKP Application". */
+	BkpWindow  * win;         /**< Existing window to attach to.  NULL → bkp creates one sized @p winWidth × @p winHeight. */
+	EWindowType  eWinType;    /**< Window-system backend (e.g. @c eWIN_GLFW).  Ignored when @p win is provided. */
+	int          winWidth;    /**< Initial window width in pixels.   0 → 1920. */
+	int          winHeight;   /**< Initial window height in pixels.  0 → 1080. */
 
-	uint8_t maxFrameInFlight;
-	BkpBool forceIntegratedGPU;
-	BkpBool headless;
-	BkpBool fullScreen;
-  BkpBool printVulkanInfo;
-	EBkpVmaMode     vmaMode;
-	BkpVmaCallbacks vmaCallbacks;
+	uint8_t maxFrameInFlight;   /**< Pipeline depth: 1 = no overlap, 2 = double-buffer (typical), 3 = triple.  0 → 2. */
+	BkpBool forceIntegratedGPU; /**< @c BKP_TRUE: skip dedicated GPUs and select the integrated adapter. */
+	BkpBool headless;           /**< @c BKP_TRUE: no window / no surface — off-screen rendering only. */
+	BkpBool fullScreen;         /**< @c BKP_TRUE: open the window in fullscreen mode. */
+	BkpBool printVulkanInfo;    /**< @c BKP_TRUE: log detailed device/extension info at startup. */
+
+	EBkpVmaMode     vmaMode;      /**< Memory-allocator back-end (bkp built-in, Vulkan Memory Allocator, custom vtable). */
+	BkpVmaCallbacks vmaCallbacks; /**< Custom allocator vtable; only used when @p vmaMode == @c eVMA_CUSTOM. */
+
+	/**
+	 * @brief Maximum staging-memory budget per texture-upload batch, in bytes  (mode A).
+	 *
+	 * @ref bkpUploadTextureBatch splits large uploads into sub-batches so that at most
+	 * @p stagingBudgetBytes of CPU-visible staging memory is live simultaneously.
+	 * This prevents OOM on APUs (shared VRAM) and caps peak RAM pressure on
+	 * dedicated GPUs when loading models with many high-resolution textures.
+	 *
+	 * - @c 0 → built-in default (256 MiB).
+	 * - Ignored when @p dynamicStagingBudget is @c BKP_TRUE.
+	 *
+	 * @note Set before calling @ref bkpInitVulkanContext (or @ref bkpInit).
+	 */
+	size_t stagingBudgetBytes;
+
+	/**
+	 * @brief Enable runtime-adaptive staging budget via @c VK_EXT_memory_budget  (mode C).
+	 *
+	 * When @c BKP_TRUE, bkp requests the @c VK_EXT_memory_budget device extension
+	 * and, at each texture-upload call, queries the available CPU-visible heap to
+	 * derive the per-batch budget (¼ of the currently free space).  This adapts
+	 * automatically to real-time memory pressure and is the recommended mode for APUs
+	 * or any configuration where VRAM is shared with system RAM.
+	 *
+	 * If @c VK_EXT_memory_budget is absent on the selected device, bkp logs a warning
+	 * and silently falls back to the static @p stagingBudgetBytes budget (mode A).
+	 *
+	 * @note Must be set **before** @ref bkpInitVulkanContext (or @ref bkpInit) so
+	 * that the extension is enabled during logical-device creation.
+	 */
+	BkpBool dynamicStagingBudget;
+
 } BkpVulkanContextInfo;
 
 
